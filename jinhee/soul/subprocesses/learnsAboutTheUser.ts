@@ -1,7 +1,7 @@
 
 import { html } from "common-tags";
 import { ChatMessageRoleEnum, CortexStep, internalMonologue, mentalQuery } from "socialagi";
-import { MentalProcess } from "soul-engine";
+import { MentalProcess, useActions, useProcessMemory } from "soul-engine";
 
 const userNotes = () => () => ({
   command: ({ entityName: name }: CortexStep) => {
@@ -30,7 +30,7 @@ const userNotes = () => () => ({
   }
 })
 
-const learnsAboutTheUser: MentalProcess = async ({ step: initialStep, subroutine: { useActions, useProcessMemory } }) => {
+const learnsAboutTheUser: MentalProcess = async ({ step: initialStep }) => {
   const userModel = useProcessMemory("Unkown User")
   const { log } = useActions()
 
@@ -46,26 +46,18 @@ const learnsAboutTheUser: MentalProcess = async ({ step: initialStep, subroutine
     ${userModel.current}
   `
   }])
-  const modelQuery = await step.compute(mentalQuery(`${step.entityName} has learned something new and they need to update the mental model of the user.`));
-  log("Update model?", modelQuery)
-  if (modelQuery) {
-    step = await step.next(
-      internalMonologue("What have I learned specifically about the user from the last few messages?", "noted"),
-      { model: "quality" }
-    )
-    log("Learnings:", step.value)
-    userModel.current = await step.compute(userNotes())
-  }
 
-  const behaviorQuery = await step.compute(mentalQuery(`${step.entityName} needs to make changes to their behavior.`));
-  log("Internal voice?", behaviorQuery)
-  if (behaviorQuery) {
-    const thought = await step.compute(internalMonologue("What should I think to myself to change my behavior? Start with 'I need...'", "thinks"))
-    finalStep = initialStep.withMemory([{
-      role: ChatMessageRoleEnum.Assistant,
-      content: `${step.entityName} thought to themself: ${thought}`
-    }])
-  }
+  step = await step.next(
+    internalMonologue("What have I learned specifically about the user from the last few messages?", "noted"),
+    { model: "quality" }
+  )
+  log("Learnings:", step.value)
+  userModel.current = await step.compute(userNotes())
+
+  const thought = await step.compute(internalMonologue("What should I think to myself to change my behavior? Start with 'I need...'", "thinks"))
+  finalStep = initialStep.withMonologue(html`
+    ${step.entityName} thought to themself: ${thought}
+  `)
 
   return finalStep
 }

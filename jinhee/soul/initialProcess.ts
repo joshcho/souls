@@ -1,5 +1,6 @@
-import { externalDialog } from "socialagi";
-import { MentalProcess } from "soul-engine";
+import { externalDialog, mentalQuery } from "socialagi";
+import { MentalProcess, useActions, useProcessManager } from "soul-engine";
+import shouts from "./mentalProcesses/shouts.js";
 
 function split(s) {
   // split("간") => [0, 0, 4]
@@ -21,6 +22,10 @@ const charMap = {
   '짜': '차',
 };
 
+// {
+//   '입니다': '이니타',
+//   '하세요': '하세효'
+// };
 
 const charCodeMap = {};
 
@@ -44,14 +49,14 @@ function jinheeChar(str) {
   return String.fromCharCode(0xAC00 + ((cho * 21) + jung) * 28 + jong).toString();
 }
 
-const gainsTrustWithTheUser: MentalProcess = async ({ step: initialStep, subroutine: { useActions } }) => {
-  const { speak  } = useActions()
+const gainsTrustWithTheUser: MentalProcess = async ({ step: initialStep }) => {
+  const { speak, log } = useActions()
+  const { setNextProcess } = useProcessManager()
 
   const { stream, nextStep } = await initialStep.next(
     externalDialog("Talk to the user trying to gain trust and learn about their inner world."),
     { stream: true, model: "quality" }
   );
-
   async function* transformStream(asyncIterable, func) {
     // apply func transformation to asyncIterable
     for await (let chunk of asyncIterable) {
@@ -59,9 +64,19 @@ const gainsTrustWithTheUser: MentalProcess = async ({ step: initialStep, subrout
     }
   }
 
-//  speak(stream);
   speak(transformStream(stream, jinheeChar));
-  return nextStep
+  // speak(stream);
+
+  const lastStep = await nextStep
+  // const shouldShout = await lastStep.compute(
+  //   mentalQuery("The interlocuter is being rude")
+  // )
+  // log("User attacked soul?", shouldShout)
+  // if (shouldShout) {
+  //   setNextProcess(shouts)
+  // }
+
+  return lastStep
 }
 
 export default gainsTrustWithTheUser
